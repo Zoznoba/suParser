@@ -1,0 +1,12 @@
+# Воркер браузерных парсеров (hh.ru, LinkedIn): Python + Playwright + Chromium
+FROM mcr.microsoft.com/playwright/python:v1.63.0-noble
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/venv PATH="/venv/bin:$PATH"
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project --extra browser && playwright install chromium
+COPY . .
+
+CMD ["taskiq", "worker", "app.tasks.broker:browser_broker", "app.tasks.collect", "app.tasks.login", "--workers", "1", "--max-async-tasks", "1"]

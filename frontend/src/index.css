@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+/*
+ * Монохромный стиль из hh-stats: белые карточки с тонкой чёрной рамкой на фоне в точку,
+ * чёрный — активное состояние, «полоски» — процесс/внимание. Повторяющиеся примитивы — в @layer components.
+ */
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --color-ink: #000000;
+  --color-canvas: #ffffff;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  color: var(--color-ink);
+  background-color: var(--color-canvas);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.13) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+  font-feature-settings: "cv11", "ss01";
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* числа не должны прыгать при обновлении */
+.nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* бегущие чёрно-белые полосы — «идёт процесс» */
+.stripes {
+  background-image: linear-gradient(45deg, #000 25%, #fff 25%, #fff 50%, #000 50%, #000 75%, #fff 75%, #fff 100%);
+  background-size: 16px 16px;
+  animation: stripes-anim 1s linear infinite;
+}
+
+@keyframes stripes-anim {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 16px 0;
+  }
+}
+
+/* бледные полосы — плашки внимания, выключенные сущности */
+.stripes-soft {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.08) 0,
+    rgba(0, 0, 0, 0.08) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.enter {
+  animation: enter 0.42s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter,
+  .stripes {
+    animation: none;
+  }
+}
+
+.scroll-slim::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: #000;
+  border: 3px solid #fff;
+  background-clip: content-box;
+}
+
+@layer components {
+  .card {
+    @apply rounded-3xl border border-black/50 bg-white;
+  }
+
+  .label {
+    @apply mb-2 block text-[13px] font-semibold text-black;
+  }
+
+  .section-title {
+    @apply text-sm font-bold tracking-tight text-black uppercase;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-black/50 bg-white px-3 py-2 text-[13px] text-black outline-none placeholder:text-black/40 focus:outline-2 focus:outline-offset-0 focus:outline-black;
+  }
+
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-black/50 bg-white px-3 py-2 text-[13px] font-medium text-black transition-[background-color,color,transform] hover:bg-black hover:text-white active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  /* модификаторы: className="btn btn-primary" */
+  .btn-primary {
+    @apply border-black bg-black text-white hover:bg-black/80;
+  }
+
+  .btn-ghost {
+    @apply border-transparent bg-transparent;
+  }
+
+  /* переключаемая «пилюля»: фильтры, статусы, источники */
+  .chip {
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-black/50 bg-white px-3 py-1.5 text-[12px] font-medium text-black transition-[background-color,color,transform] hover:bg-black/5 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .chip-on,
+  .chip[aria-pressed="true"] {
+    @apply border-black bg-black text-white hover:bg-black/85;
+  }
+
+  .tag {
+    @apply inline-flex items-center gap-1 rounded-md border border-black/50 bg-white px-1.5 py-0.5 text-[11px] font-medium text-black;
+  }
+}

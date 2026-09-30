@@ -1,0 +1,87 @@
+x-backend: &backend
+  build: ./backend
+  env_file: ./backend/.env
+  environment:
+    DATABASE_URL: postgresql+asyncpg://hr:hr@postgres:5432/hr
+    REDIS_URL: redis://redis:6379/0
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    migrate: { condition: service_completed_successfully }
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: hr
+      POSTGRES_PASSWORD: hr
+      POSTGRES_DB: hr
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: pg_isready -U hr
+      interval: 2s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: redis-cli ping
+      interval: 2s
+      retries: 20
+
+  migrate:
+    <<: *backend
+    command: alembic upgrade head
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    <<: *backend
+    ports: ["127.0.0.1:8000:8000"]
+
+  worker-api:
+    <<: *backend
+    command: taskiq worker app.tasks.broker:api_broker app.tasks.collect --workers 1
+
+  scheduler:
+    <<: *backend
+    command: taskiq scheduler app.tasks.scheduler:scheduler
+
+  # Браузерные парсеры (SUPERJOB_MODE=browser, hh.ru): docker compose --profile browser up
+  worker-browser:
+    <<: *backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.browser
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hr:hr@postgres:5432/hr
+      REDIS_URL: redis://redis:6379/0
+      BROWSER_STATE_DIR: /data/browser-state
+      BROWSER_HEADLESS: "true"
+      HOME: /tmp
+    # под пользователем хоста: файлы сессии в ./backend/.browser-state остаются доступны для browser-login
+    user: "${UID:-1000}:${GID:-1000}"
+    # та же папка, куда пишет `app.cli browser-login` при ручном входе на хосте
+    volumes: [./backend/.browser-state:/data/browser-state]
+    profiles: [browser]
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_PROXY_TARGET: http://api:8000
+    ports: ["127.0.0.1:5173:5173"]
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  redisdata:
