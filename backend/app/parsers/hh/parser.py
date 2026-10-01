@@ -150,8 +150,11 @@ class HHParser(BrowserParser):
     async def read_state(self, page: "Page") -> dict[str, Any] | None:
         try:
             return await page.evaluate(STATE_JS)
-        except Exception:
-            log.exception("hh: cannot read page state on %s", page.url)
+        except Exception as e:
+            if "context was destroyed" in str(e):  # страница как раз переходит дальше (шаги входа) — это не ошибка
+                log.debug("hh: page navigated while reading state on %s", page.url)
+            else:
+                log.exception("hh: cannot read page state on %s", page.url)
             return None
 
     async def check_login(self, state: dict[str, Any]) -> None:

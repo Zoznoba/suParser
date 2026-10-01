@@ -18,7 +18,7 @@ from abc import abstractmethod
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.core.config import settings
 from app.core.redis import redis
@@ -62,18 +62,27 @@ class BrowserParser(SourceParser):
 
             self._pw = await async_playwright().start()
             # channel="chromium" — полноценный Chromium в новом headless-режиме (headless shell легко распознать)
-            self._browser = await self._pw.chromium.launch(headless=self.headless, channel="chromium")
+            # видимое окно (ручной вход) — развёрнутым на весь экран, а не маленьким окном по умолчанию
+            args = [] if self.headless else ["--start-maximized"]
+            self._browser = await self._pw.chromium.launch(headless=self.headless, channel="chromium", args=args)
             # убираем "HeadlessChrome" из User-Agent, остальное — как у обычного Chrome на десктопе
             ua = (
                 "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
                 f"Chrome/{self._browser.version} Safari/537.36"
+            )
+            # без окна — «экран» типичного ноутбука; в видимом окне страница просто занимает всё окно
+            # (с фиксированным viewport она обрезалась бы или не растягивалась вместе с окном)
+            screen: dict[str, Any] = (
+                {"viewport": {"width": random.choice([1366, 1440, 1536]), "height": random.choice([800, 864, 900])}}
+                if self.headless
+                else {"no_viewport": True}
             )
             self._context = await self._browser.new_context(
                 storage_state=self.state_path if not self.anonymous and self.state_path.exists() else None,
                 user_agent=ua,
                 locale="ru-RU",
                 timezone_id="Europe/Moscow",
-                viewport={"width": random.choice([1366, 1440, 1536]), "height": random.choice([800, 864, 900])},
+                **screen,
             )
             self._page = await self._context.new_page()
         return self._page
@@ -153,8 +162,14 @@ class BrowserParser(SourceParser):
 
     async def interactive_login(self, timeout: float = 600, notify: Callable[[str], None] = print) -> None:
         """Открывает видимый браузер, человек входит сам (пароль, код из SMS/почты, капча), сессия сохраняется."""
+        from playwright.async_api import TimeoutError as PlaywrightTimeout
+
         page = await self.page()
-        await page.goto(self.login_url)
+        try:
+            # не ждём "load": на hh он не наступает и за 30 с (счётчики, реклама) — goto падал и закрывал окно
+            await page.goto(self.login_url, wait_until="domcontentloaded", timeout=60_000)
+        except PlaywrightTimeout:
+            notify("Страница входа грузится медленно — дождитесь её или обновите (F5), окно не закроется.")
         notify(f"Войдите в аккаунт в открывшемся окне браузера (ждём до {int(timeout // 60)} мин)…")
         async with asyncio.timeout(timeout):
             while True:
